@@ -136,3 +136,231 @@ Because with `OnPush`, Angular compares by **reference**. If you mutate objects,
 | Lazy loading modules/components | ⭐⭐ | Medium/Hard |
 
 ---
+
+
+Perfect — let’s go **deep** into `ChangeDetectionStrategy.OnPush` together!  
+I'll explain **step-by-step**, starting from **very basic** to **advanced** — including **what**, **why**, **how**, and **real examples**.
+
+---
+
+## 1. What is "Change Detection" in Angular?
+
+👉 **Change detection** is Angular’s internal process that keeps the UI **in sync** with your application **data** (variables, objects, API responses, etc.).
+
+- When you **change** a value (e.g., click a button, get API data), Angular automatically checks if the UI needs to update.
+- It does this **by running a cycle** over all components and checking if anything changed.
+
+This **automatic checking** is called **change detection cycle**.
+
+---
+
+## 2. How does Angular normally do it?
+
+👉 By default, Angular uses `ChangeDetectionStrategy.Default`.
+
+**Default Strategy**:
+- After **any** event (click, input, HTTP response, timer, etc.), **Angular rechecks every component** starting from the root (AppComponent) down to the leaves (child components).
+- **Every binding** (`{{ value }}`) is re-evaluated even if **nothing has changed**.
+
+⛔ **Problem**:  
+In a big app, this becomes **slow** because:
+- Even **unaffected components** get checked.
+- Wastes CPU and memory.
+
+---
+
+## 3. What is `ChangeDetectionStrategy.OnPush`?
+
+👉 `ChangeDetectionStrategy.OnPush` **optimizes** change detection.
+
+**With `OnPush`**, Angular **ONLY** checks a component when:
+- An **@Input()** value changes (by **reference**).
+- You manually tell Angular to check using code (`markForCheck()`).
+- You trigger an event **inside** the component (e.g., a click inside it).
+
+✅ This makes Angular **skip unnecessary work** and **only re-render the parts that really changed**.
+
+---
+
+## 4. How to use `ChangeDetectionStrategy.OnPush`?
+
+Set it in your component decorator:
+
+```ts
+import { Component, ChangeDetectionStrategy } from '@angular/core';
+
+@Component({
+  selector: 'app-example',
+  templateUrl: './example.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class ExampleComponent {
+  @Input() data: any;
+}
+```
+
+---
+
+## 5. Basic Example of OnPush
+
+### Without OnPush (Default)
+
+Imagine you have:
+
+```ts
+@Component({
+  selector: 'parent-comp',
+  template: `
+    <h1>Parent</h1>
+    <button (click)="update()">Update Parent</button>
+    <child-comp [name]="childName"></child-comp>
+  `
+})
+export class ParentComponent {
+  childName = 'Child A';
+
+  update() {
+    console.log('Parent updated!');
+  }
+}
+
+@Component({
+  selector: 'child-comp',
+  template: `
+    <h2>Child: {{ name }}</h2>
+  `
+})
+export class ChildComponent {
+  @Input() name!: string;
+}
+```
+
+- Clicking **Update Parent** will **trigger change detection** in both **Parent** and **Child** even if the `childName` has not changed.
+- Waste of performance!
+
+---
+
+### Now with OnPush on Child
+
+```ts
+@Component({
+  selector: 'child-comp',
+  template: `
+    <h2>Child: {{ name }}</h2>
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class ChildComponent {
+  @Input() name!: string;
+}
+```
+
+Now:
+- When you click **Update Parent**, Angular **skips** checking the **ChildComponent** because its `@Input` (`childName`) did not change.
+- Faster and more efficient.
+
+✅ **Child only updates if `name` changes by reference.**
+
+---
+
+## 6. Important Rule with OnPush
+
+✅ Angular will detect changes in an OnPush component when:
+
+| Situation | Example |
+|:---------|:--------|
+| @Input reference changes | Assign a **new object** to an `@Input` |
+| Internal event happens | A click or form submit inside the component |
+| Manual trigger | Call `ChangeDetectorRef.markForCheck()` |
+
+⚠️ **Mutating an object without changing reference will NOT trigger update!**
+
+Bad:
+
+```ts
+// This will NOT trigger update in OnPush
+this.user.name = 'New Name';
+```
+
+Good:
+
+```ts
+// This will trigger update (because reference changes)
+this.user = { ...this.user, name: 'New Name' };
+```
+
+**Always create a new object or array!**
+
+---
+
+## 7. Advanced: Manual Detection Control
+
+Sometimes you need to **manually control** change detection:
+
+```ts
+import { ChangeDetectorRef } from '@angular/core';
+
+constructor(private cdr: ChangeDetectorRef) {}
+
+// Force Angular to check this component
+this.cdr.markForCheck();
+
+// Completely detach component from Angular checks
+this.cdr.detach();
+
+// Manually tell Angular to check right now
+this.cdr.detectChanges();
+```
+
+---
+
+## 8. Visual Summary
+
+Here's a simple flow:
+
+```text
+(1) App event (click, http, timer) happens
+
+    Default strategy:
+      -> Angular checks every component.
+
+    OnPush strategy:
+      -> Angular checks only components with input changes or internal events.
+```
+
+---
+
+## 9. Quick Real World Example (with code)
+
+Imagine you have a large list and parent frequently updates:
+
+```html
+<!-- parent.component.html -->
+<button (click)="randomChange()">Random Update</button>
+<app-user-card *ngFor="let user of users" [user]="user"></app-user-card>
+```
+
+If `app-user-card` uses **Default** change detection:
+- Every user card will be checked on every button click.
+
+If `app-user-card` uses **OnPush**:
+- Only those whose `user` input **actually changes** will update!
+
+✅ This boosts rendering performance **A LOT**.
+
+---
+
+# Final Advice
+- **Always prefer `OnPush`** unless you have a strong reason not to.
+- **Always change object references** if you update data (`{ ...obj }` or `[...arr]`).
+- **Combine `OnPush` with Observables** (`async` pipe) for best performance.
+
+---
+
+Would you like me to also show a small **live project example** where we have:
+- Parent updating frequently
+- Child with `OnPush`
+- `trackBy` with lists
+
+It will be super clear when you see it in action! 🚀  
+Should I build one for you?
